@@ -306,6 +306,8 @@ public class QueryBillRequest implements Serializable {
 			}
 			
 			public String getTraceNo() {
+
+
 				return traceNo;
 			}
 

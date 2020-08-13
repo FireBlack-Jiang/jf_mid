@@ -57,16 +57,16 @@ public class ChargeBillController {
 			}
 			String signatureString = requestContent.substring(0,
 					requestContent.indexOf("||"));
-			logger.info("-----ChargeBillController------------截取报文的signatureString:", signatureString);
+			logger.info("-----ChargeBillController------------截取报文的signatureString:{}", signatureString);
 			String requestBody = requestContent.substring(signatureString
 					.length() + 2);
-			logger.info("-----ChargeBillController------------截取报文的requestBody:", requestBody);
+			logger.info("-----ChargeBillController------------截取报文的requestBody:{}", requestBody);
 			//如果有双引号，则截取双引号内requestBody的内容
 			Pattern p=Pattern.compile("\"");
 			Matcher m=p.matcher(requestBody);
 			while(m.find()){
 				requestBody=requestBody.replace(m.group(), "");
-				logger.info("-----ChargeBillController------如果有双引号，则截取后的requestBody:", requestBody);
+				logger.info("-----ChargeBillController------如果有双引号，则截取后的requestBody:{}", requestBody);
 			}
 			//requestBody是base64加密后的数据，需解析出来
 			String requset = new String(

@@ -27,18 +27,26 @@ import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.stereotype.Component;
+
 /**
  * 验签和加签工具类
  * @author yzz
  *
  */
+@Component
 public class SignatureAndVerification {
-
-	private  String PFXPATH="certificate/103881104410001.pfx";
-	private  String CERPATH="certificate/TrustPayTest.cer";
+	@Value("${pfxPath}")
+	private  String PFXPATH;
+	@Value("${cerPath}")
+	private  String CERPATH="certificate\\TrustPay.cer";
+	@Value("${keystore_password}")
 	private  String KEYSTORE_PASSWORD="abcd1234";
+	@Value("${keystore_alias}")
 	private  String KEYSTORE_ALIAS="abcd1234";
-	private String  rootPath=System.getProperty("user.dir")+File.separator+"src"+File.separator+"main"+File.separator+"resources"+File.separator;
+    public  static String  rootPath=System.getProperty("user.dir")+File.separator+"resources"+File.separator;
+
 	private final Logger logger = LoggerFactory.getLogger(this.getClass());
 	
 	/**
@@ -48,8 +56,11 @@ public class SignatureAndVerification {
 	 */
 	public  String signWhithsha1withrsa(String dataString) {
 		String signatureString = null;
-		String filePath=rootPath+PFXPATH;
+		String filePath =rootPath+ PFXPATH;
+		logger.info("签名路径："+filePath);
 		try {
+
+
 			KeyStore ks = KeyStore.getInstance("PKCS12");
 			FileInputStream fis = new FileInputStream(filePath);
 			char[] nPassword = null;
@@ -61,7 +72,7 @@ public class SignatureAndVerification {
 			}
 			ks.load(fis, nPassword);
 			fis.close();
-			System.out.println("keystore type=" + ks.getType());
+			logger.info("keystore type=" + ks.getType());
 			Enumeration<String> enums = ks.aliases();
 			String keyAlias = null;
 			if (enums.hasMoreElements()) 
@@ -86,9 +97,10 @@ public class SignatureAndVerification {
 			sign.update(dataBase);
 			byte[] signature = sign.sign();
 			signatureString = new String(Base64.encodeBase64(signature));
-			System.out.println("--------signature is : " + signatureString);
+			logger.info("--------signature is : " + signatureString);
 		} catch (Exception e) {
 			e.printStackTrace();
+			logger.error("签名异常",e);
 		}
 		return signatureString;
 	}
@@ -96,9 +108,10 @@ public class SignatureAndVerification {
 	/**
 	 * 读取cer并验证公钥签名
 	 */
-	public  void read_cer_and_verify_sign(String requsetBody, String signature) {
-		String filePath=rootPath+CERPATH;
+	public  boolean read_cer_and_verify_sign(String requsetBody, String signature) {
+
 		X509Certificate cert = null;
+		String filePath=rootPath+CERPATH;
 		try {
 			CertificateFactory cf = CertificateFactory.getInstance("X.509");
 			cert = (X509Certificate) cf
@@ -107,28 +120,20 @@ public class SignatureAndVerification {
 			PublicKey publicKey = cert.getPublicKey();
 			String publicKeyString = new String(Base64.encodeBase64(publicKey
 					.getEncoded()));
-			System.out.println("-----------------公钥--------------------");
-			System.out.println(publicKeyString);
-			System.out.println("-----------------公钥--------------------");
+			logger.info("-----------------公钥--------------------");
+			logger.info(publicKeyString);
+			logger.info("-----------------公钥--------------------");
 			Signature verifySign = Signature.getInstance("SHA1withRSA");
 			verifySign.initVerify(publicKey);
 			// 用于验签的数据
 			verifySign.update(requsetBody.getBytes("utf-8"));
 			boolean flag = verifySign.verify(com.alibaba.fastjson.util.Base64
 					.decodeFast(signature));// 验签由第三方做
-			System.out.println("verifySign is " + flag);
-		} catch (InvalidKeyException e) {
-			e.printStackTrace();
-		} catch (NoSuchAlgorithmException e) {
-			e.printStackTrace();
-		} catch (SignatureException e) {
-			e.printStackTrace();
-		} catch (CertificateException e) {
-			e.printStackTrace();
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		}catch (UnsupportedEncodingException e) {
-			e.printStackTrace();
+			logger.info("verifySign is " + flag);
+			return flag;
+		} catch (Exception e) {
+			logger.error("验签异常",e);
+			return false;
 		}
 
 	}
@@ -147,23 +152,18 @@ public class SignatureAndVerification {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		  /*requestContent=
-		  "k6lECy5TcFx9SNniGM8xg94ZeocFBOIp8xF1wJg817gcBYuN6UHssjwr0/U5W2D1XZIRXJHQkgfluQ2qzZhDl5eiOyHpNgbxR0I/QYxUokaZy3XnSAjCi+uv6O6gti5MCnFs3ZP1l4cKdJrKMPaZowoQKR0aeUUFc3zWTH3LTcg=||eyJmb3JtYXQiOiJqc29uIiwibWVzc2FnZSI6eyJoZWFkIjp7ImJyYW5jaENvZGUiOiIyMTEwIiwiY2hhbm5lbCI6Ik1CTksiLCJ0aW1lU3RhbXAiOiIyMDE4MDkyMTE1MTg0Nzg2NyIsInRyYW5zQ29kZSI6InF1ZXJ5QmlsbCIsInRyYW5zRmxhZyI6IjAxIiwidHJhbnNTZXFOdW0iOiJCUDE4MDkyMTE1MTg1NzM5MDAwOSJ9LCJpbmZvIjp7ImVwYXlDb2RlIjoiSkYtRVBBWTIwMTgwODAyNjU2MDIiLCJpbnB1dDEiOiIxMjM0NTYiLCJtZXJjaGFudElkIjoiMTAzODgxMTA0NDEwMDAxIiwidHJhY2VObyI6IkpGMTgwOTIxMTUxODU3ODQ4NTkyIiwidXNlcklkIj"
-		  + "oiMTYzNzUwNDYwMjk5NDM1NiJ9fX0=";*/
-		//requestContent="EmYU9i0t+QkXRMT/adsTwnZCi/3DuEiufUthiWrVOPk/35P8a29wOAdMdpf//AREa7s5IEUs/SRTUyApvsZOMgK0wOyAugSiqFOzhp8A0+rihyrwcexDAy1oaRcp54cZV4Q6iiHKuzBYuIVp6OuYV0dogLBEeVC4yKQA6+syPj8=||eyAiZm9ybWF0IjogImpzb24iLCAibWVzc2FnZSI6IHsgImhlYWQiOiB7ICJjaGFubmVsIjogIk1CTksiLCAicmV0dXJuQ29kZSI6ICIwMDAwIiwgInJldHVybk1lc3NhZ2UiOiAi6LSm5Y2V5p+l6K+i5oiQ5Yqf77yM6L+U5Zue5oiQ5Yqf5qCH5b+XIiwgInRpbWVTdGFtcCI6ICIyMDE5MDUxMzEwNDcxNzU0NCIsInRyYW5zQ29kZSI6ICJxdWVyeUJpbGwiLCAidHJhbnNGbGFnIjogIjAyIiwgInRyYW5zU2VxTnVtIjogIkJQMTkwNDI4MTQ0MzMzNDE2MzUwIiB9LCAiaW5mbyI6IHsgImFtdFJ1bGUiOiAiMCIsICJiaWxscyI6IFt7ICJiaWxsTmFtZSI6ICLljZflt53liIblhazlj7gsLOmDkeacrOengDrmsJTotLnnvLTotLnljZUiLCAiYmlsbE5vIjogIjIwMTgwOSIsICJkZXNjRGV0YWlscyI6IFt7ICJzQ3B0IjogIjIwMTgwOSIsICJzVmFsIjogIjUuNjciIH1dLCAiZmVlQW10IjogIjAuMDAiLCAib3dlQW10IjogIjUuNjciIH1dLCAiY2FjaGVNZW0iOiAiY2hhcmdlRmVlMjAxODA5IiwgImN1c3RBZGRyZXNzIjogIuWNl+W3neawtOaxn+Wkp+m+mTPnu4Tmm5nlhYnliqDmsrnnq5nml4EgIiwgImN1c3ROYW1lIjogIumDkeacrOengCIsICJlcGF5Q29kZSI6ICJKRi1FUEFZMjAxOTA0MDg4NTQ4MSIsICJpbnB1dDEiOiAiMDMyMjAwMDE1IiwgIm1lcmNoYW50SWQiOiAiMTAzODgzMTY0OTkwMDMzIiwgInJlbWFyayI6ICLljZflt53liIblhazlj7gsLDEzNTk0NTg0NzE0LDAzMjIwMDAxNSIsICJ0b3RhbEJpbGxDb3VudCI6ICIxIiwgInRyYWNlTm8iOiAiSkYxOTA0MjgxNDQzMzM5ODA1MzEiIH0gfSB9";
-		 
 		if (logger.isWarnEnabled()) {
 			logger.info("收到的报文：{}", requestContent);
 		}
 		String signatureString = requestContent.substring(0,
 				requestContent.indexOf("||"));
-		logger.info("截取报文的signatureString:", signatureString);
+		logger.info("报文的签名:{}", signatureString);
 		String requsetBody = requestContent.substring(signatureString
 				.length() + 2);
-		logger.info("截取报文的requsetBody:", requsetBody);
+		logger.info("报文的内容:{}", requsetBody);
 		String requsetBodyOfDecoded = new String(
 				com.alibaba.fastjson.util.Base64.decodeFast(requsetBody));
-		System.out.println("-----解析完成后的requsetBody-------" + requsetBodyOfDecoded);
+		logger.info("-----解析完成后的requsetBody-------" + requsetBodyOfDecoded);
 		//使用base64解析完成后的requsetBody
 		requestMap.put("requsetBodyOfDecoded",requsetBodyOfDecoded);
 		//解析前的requsetBody

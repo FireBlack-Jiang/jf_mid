@@ -6,11 +6,15 @@ import merchant.utils.HttpClientUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
+@Component
 public class FucSend {
 
 	private Logger logger = LoggerFactory.getLogger(FucSend.class);
-	private SignatureAndVerification signatureAndVerification=new SignatureAndVerification();
+	@Autowired
+	private SignatureAndVerification signatureAndVerification;
 	public String SendMsg(String reqUrl,String reqJson)
 	{
 		String res="";
@@ -25,7 +29,6 @@ public class FucSend {
 		String responseStr = HttpClientUtils.doPostStr(reqUrl, reqStr);
 		logger.info("接收到的报文："+responseStr);
 		return responseStr;
-		
 	}
 	
 }
